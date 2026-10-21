@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Runtime data & SQLite databases
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-shm
+*.db-wal
+
+# WhatsApp authentication & session material
+auth/
+whatsapp-auth/
+session/
+
+# Secrets & local configuration
+.env
+.env.*
+!.env.example
+config.json
+secrets/
+*.pem
+*.key
+
+# Logs & OS files
+logs/
+*.log
+.DS_Store
+coverage/

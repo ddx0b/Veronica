@@ -1,0 +1,47 @@
+{
+  "whatsapp": {
+    "enabled": true,
+    "targetChatId": "15551234567@s.whatsapp.net",
+    "authDirectory": "/auth"
+  },
+  "email": {
+    "smtp": {
+      "host": "smtp.example.com",
+      "port": 465,
+      "secure": true,
+      "user": "bridge@example.com",
+      "fromAddress": "bridge@example.com"
+    },
+    "imap": {
+      "host": "imap.example.com",
+      "port": 993,
+      "secure": true,
+      "user": "bridge@example.com",
+      "enabled": true
+    },
+    "userEmail": "user@example.com",
+    "replyDomain": "bridge.local"
+  },
+  "routing": {
+    "whatsappToEmail": true,
+    "emailToWhatsapp": true,
+    "allowedEmailSenders": [
+      "user@example.com"
+    ]
+  },
+  "database": {
+    "path": "/data/bridge.sqlite",
+    "retentionDays": 7
+  },
+  "worker": {
+    "pollIntervalMs": 1000,
+    "maxAttempts": 5,
+    "baseBackoffMs": 1000,
+    "maxBackoffMs": 60000,
+    "processingTimeoutMs": 30000
+  },
+  "http": {
+    "host": "0.0.0.0",
+    "port": 3000
+  }
+}
