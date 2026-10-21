@@ -221,6 +221,20 @@ Subject: Meeting`;
 Sent from my iPhone`;
 
     assert.equal(stripEmailQuotes(mobileSig), 'Will do.');
+
+    const spanishWrappedReply = `Lo sé. Si, acá yo estoy bien. Un beso
+
+El mié, 21 oct 2026 a las 17:21, Anné Betancourt López (<
+veronicabridgerp@gmail.com>) escribió:
+> Hola, cómo estás?`;
+
+    assert.equal(stripEmailQuotes(spanishWrappedReply), 'Lo sé. Si, acá yo estoy bien. Un beso');
+
+    const spanishSig = `Nos vemos mañana.
+
+Enviado desde mi iPhone`;
+
+    assert.equal(stripEmailQuotes(spanishSig), 'Nos vemos mañana.');
   });
 
   it('normalizes inbound email event and preserves sender and targetChatId', () => {

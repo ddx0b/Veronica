@@ -228,14 +228,14 @@ export function stripEmailQuotes(text: string): string {
   }
 
   // Mobile signatures
-  const mobileSigRegex = /(?:^|\n)\s*(?:Sent from my|Get Outlook for|Enviado do meu|Enviado pelo meu|Enviado de meu|Enviado via)\s+[^\n]+/i;
+  const mobileSigRegex = /(?:^|\n)\s*(?:Sent from my|Get Outlook for|Obtener Outlook para|Enviado desde mi|Enviado do meu|Enviado pelo meu|Enviado de meu|Enviado via)\s+[^\n]+/i;
   const mobileSigMatch = mobileSigRegex.exec(cleaned);
   if (mobileSigMatch) {
     cleaned = cleaned.slice(0, mobileSigMatch.index);
   }
 
-  // 4. "On <date>, <sender> wrote:" / "Em <data>, <remetente> escreveu:"
-  const onWroteRegex = /(?:^|\n)\s*(?:On\s+[\s\S]+?\s+wrote|Em\s+[\s\S]+?\s+escreveu|No dia\s+[\s\S]+?\s+escreveu)\s*:[^\n]*(?:\n|$)/i;
+  // 4. "On <date>, <sender> wrote:" / "El <fecha>, <remitente> escribió:" / "Em <data>, <remetente> escreveu:"
+  const onWroteRegex = /(?:^|\n)\s*(?:On|El|Em|No dia|Le|Am|Il)\s+[^\n]*(?:\d{1,4}[^\n]*(?:\n[^\n]*){0,3}?|[^\n]*?)(?:wrote|escribi[oó]|ha escrito|escreveu|a écrit|ha scritto|schrieb)[^:\n]*:[^\n]*(?:\n|$)/i;
   const onWroteMatch = onWroteRegex.exec(cleaned);
   if (onWroteMatch) {
     const beforeOnWrote = cleaned.slice(0, onWroteMatch.index).trim();
