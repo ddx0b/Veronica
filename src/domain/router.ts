@@ -71,7 +71,8 @@ export class Router {
         return { allowed: false, reason: 'email_to_whatsapp_disabled' };
       }
 
-      const senderEmail = message.senderId.toLowerCase().trim();
+      const rawSender = message.senderId.toLowerCase().trim();
+      const senderEmail = rawSender.match(/<([^>]+)>/)?.[1]?.trim() ?? rawSender;
       if (!this.allowedEmailSendersSet.has(senderEmail)) {
         return { allowed: false, reason: 'unauthorized_email_sender' };
       }

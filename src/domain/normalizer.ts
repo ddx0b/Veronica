@@ -266,7 +266,9 @@ export function normalizeEmailEvent(
     return { kind: 'ignored', reason: 'empty_email_body' };
   }
 
-  const sender = (event.sender ?? event.from ?? '').trim();
+  const rawSender = (event.sender ?? event.from ?? '').trim();
+  const senderMatch = rawSender.match(/<([^>]+)>/);
+  const sender = senderMatch && senderMatch[1] ? senderMatch[1].trim() : rawSender;
   const targetChatId = event.targetChatId?.trim() ?? '';
 
   if (sender.length === 0) {

@@ -102,6 +102,10 @@ class MockImapClient extends EventEmitter implements ImapClientLike {
     });
   }
 
+  async search(query?: any, options?: any): Promise<number[] | false> {
+    return this.messagesToReturn.map((m) => m.uid);
+  }
+
   async *fetch() {
     for (const msg of this.messagesToReturn) {
       yield msg;

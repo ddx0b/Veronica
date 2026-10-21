@@ -41,6 +41,7 @@ export interface ImapConfig {
   enabled: boolean;
   mailbox?: string;
   reconnectDelayMs?: number;
+  pollIntervalMs?: number;
 }
 
 export interface ImapMailboxLock {
@@ -81,6 +82,10 @@ export interface ImapClientLike {
   close(): void;
   getMailboxLock(mailbox: string): Promise<ImapMailboxLock>;
   idle(): Promise<boolean | undefined>;
+  search?(
+    query: any,
+    options?: any
+  ): Promise<number[] | false | undefined>;
   fetch(
     range: any,
     query: any,
@@ -418,6 +423,8 @@ export class NodemailerEmailAdapter implements EmailAdapter {
   private isImapConnected = false;
   private mailboxLock: ImapMailboxLock | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
+  private pollTimer: NodeJS.Timeout | null = null;
+  private isFetchingUnseen = false;
 
   constructor(options: EmailAdapterOptions) {
     this.options = options;
@@ -479,6 +486,7 @@ export class NodemailerEmailAdapter implements EmailAdapter {
 
   public async stop(): Promise<void> {
     this.stopping = true;
+    this.stopPolling();
 
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -604,10 +612,14 @@ export class NodemailerEmailAdapter implements EmailAdapter {
       // Fetch any existing unseen messages upon connecting
       await this.fetchAndProcessUnseenMessages();
 
+      // Start periodic fallback polling to ensure messages are never missed if IDLE drops or exists delays
+      this.startPolling();
+
       // Enter IDLE loop in background
       this.startIdleLoop();
     } catch (err) {
       this.isImapConnected = false;
+      this.stopPolling();
       throw mapEmailError(err, { phase: 'connect' });
     }
   }
@@ -634,6 +646,7 @@ export class NodemailerEmailAdapter implements EmailAdapter {
 
   private handleImapDisconnect(): void {
     this.isImapConnected = false;
+    this.stopPolling();
     if (this.mailboxLock) {
       try {
         this.mailboxLock.release();
@@ -648,6 +661,28 @@ export class NodemailerEmailAdapter implements EmailAdapter {
     }
 
     this.scheduleReconnect();
+  }
+
+  private startPolling(): void {
+    this.stopPolling();
+    const intervalMs = this.options.imap?.pollIntervalMs ?? 15000;
+    this.pollTimer = setInterval(() => {
+      if (!this.stopping && this.isImapConnected) {
+        this.fetchAndProcessUnseenMessages().catch((err) => {
+          this.logger?.debug({ err }, 'Periodic unseen message poll encountered an error');
+        });
+      }
+    }, intervalMs);
+    if (typeof this.pollTimer.unref === 'function') {
+      this.pollTimer.unref();
+    }
+  }
+
+  private stopPolling(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
   }
 
   private scheduleReconnect(): void {
@@ -685,35 +720,62 @@ export class NodemailerEmailAdapter implements EmailAdapter {
   }
 
   private async fetchAndProcessUnseenMessages(): Promise<void> {
-    if (!this.imapClient || !this.isImapConnected) {
+    if (!this.imapClient || !this.isImapConnected || this.isFetchingUnseen) {
       return;
     }
 
+    this.isFetchingUnseen = true;
     try {
+      let uids: number[] = [];
+      if (typeof this.imapClient.search === 'function') {
+        const searchResult = await this.imapClient.search({ seen: false }, { uid: true });
+        if (Array.isArray(searchResult)) {
+          uids = searchResult;
+        } else if (searchResult === false) {
+          return;
+        }
+      }
+
+      // If search is supported and returned empty array, no unseen messages exist
+      if (typeof this.imapClient.search === 'function' && uids.length === 0) {
+        return;
+      }
+
+      const fetchRange: any = uids.length > 0 ? uids : '1:*';
       const fetchResult = this.imapClient.fetch(
-        { seen: false },
+        fetchRange,
         {
           envelope: true,
           bodyStructure: true,
           source: true,
           uid: true,
-        }
+        },
+        { uid: true }
       );
 
-      const messages = isAsyncIterable(fetchResult)
+      const messages: ImapFetchMessage[] = [];
+      const iterable = isAsyncIterable(fetchResult)
         ? fetchResult
         : Array.isArray(fetchResult)
           ? fetchResult
           : await fetchResult;
 
-      for await (const msg of messages) {
+      for await (const msg of iterable) {
+        if (this.stopping) break;
+        messages.push(msg);
+      }
+
+      if (messages.length > 0) {
+        this.logger?.info({ count: messages.length }, 'Fetched unseen emails from IMAP');
+      }
+
+      const processedUids: number[] = [];
+      for (const msg of messages) {
         if (this.stopping) break;
         try {
           await this.processMessage(msg);
-          if (msg.uid && this.imapClient.messageFlagsAdd) {
-            await this.imapClient.messageFlagsAdd({ uid: msg.uid }, ['\\Seen'], {
-              uid: true,
-            });
+          if (msg.uid) {
+            processedUids.push(msg.uid);
           }
         } catch (msgErr) {
           this.logger?.error(
@@ -722,8 +784,23 @@ export class NodemailerEmailAdapter implements EmailAdapter {
           );
         }
       }
+
+      if (processedUids.length > 0 && this.imapClient.messageFlagsAdd) {
+        try {
+          await this.imapClient.messageFlagsAdd(processedUids, ['\\Seen'], {
+            uid: true,
+          });
+        } catch (flagErr) {
+          this.logger?.warn(
+            { err: flagErr, uids: processedUids },
+            'Failed to mark incoming messages as Seen in IMAP'
+          );
+        }
+      }
     } catch (err) {
       this.logger?.error({ err }, 'Failed to fetch unseen messages from IMAP');
+    } finally {
+      this.isFetchingUnseen = false;
     }
   }
 

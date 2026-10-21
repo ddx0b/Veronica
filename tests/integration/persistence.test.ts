@@ -10,7 +10,7 @@ describe('SQLite Persistence & Transaction Atomicity', () => {
     const db = new SqliteDatabase({ dbPath: ':memory:' });
     try {
       const firstRun = db.runMigrations();
-      assert.deepEqual(firstRun, ['001_initial.sql']);
+      assert.deepEqual(firstRun, ['001_initial.sql', '002_add_media_path.sql']);
 
       const secondRun = db.runMigrations();
       assert.deepEqual(secondRun, []);
