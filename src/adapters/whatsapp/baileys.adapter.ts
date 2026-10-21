@@ -273,6 +273,12 @@ export class BaileysWhatsAppAdapter implements WhatsAppAdapter {
           return;
         }
 
+        if (this.stopping) {
+          this.connectionState = 'disconnected';
+          this.logger.info({ statusCode }, 'WhatsApp connection closed during graceful shutdown');
+          return;
+        }
+
         this.connectionState = 'disconnected';
         this.logger.warn({ statusCode }, 'WhatsApp connection closed; scheduling reconnect');
 
@@ -323,6 +329,13 @@ export class BaileysWhatsAppAdapter implements WhatsAppAdapter {
                   `              "whatsapp": { "targetChatId": "${remoteJid}" } (or "*" for all chats)\n\n`)
           );
         }
+
+        this.logger.info(
+          { messageId, remoteJid, fromMe },
+          fromMe
+            ? 'Ignored outgoing WhatsApp message sent by self'
+            : 'Received incoming WhatsApp message'
+        );
 
         // FR-09: Ignore messages originating from the bridge's own account or sent by the bridge
         if (fromMe || this.sentMessageIds.has(messageId)) {
