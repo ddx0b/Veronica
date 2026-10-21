@@ -1,0 +1,57 @@
+services:
+  veronica:
+    image: ghcr.io/egomezbpedro/veronica:latest
+    container_name: veronica
+    restart: unless-stopped
+    stop_grace_period: 15s
+    user: "node"
+    environment:
+      NODE_ENV: production
+      CONFIG_PATH: /app/config.json
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      WHATSAPP_PAIRING_MODE: ${WHATSAPP_PAIRING_MODE:-false}
+      EMAIL_PASSWORD_FILE: /run/secrets/email_password
+    secrets:
+      - email_password
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - bridge_data:/data
+      - bridge_auth:/auth
+    ports:
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health/live').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      # Instruct Watchtower to monitor this container
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ~/.docker/config.json:/config.json:ro
+    environment:
+      - DOCKER_API_VERSION=1.44
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=300
+      - WATCHTOWER_LABEL_ENABLE=true
+
+secrets:
+  email_password:
+    file: ./secrets/email_password.txt
+
+volumes:
+  bridge_data:
+  bridge_auth:

@@ -1,0 +1,43 @@
+services:
+  veronica:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: veronica
+    restart: unless-stopped
+    stop_grace_period: 15s
+    user: "node"
+    environment:
+      NODE_ENV: development
+      CONFIG_PATH: /app/config.json
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      WHATSAPP_PAIRING_MODE: ${WHATSAPP_PAIRING_MODE:-false}
+      EMAIL_PASSWORD_FILE: /run/secrets/email_password
+    secrets:
+      - email_password
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - bridge_data:/data
+      - bridge_auth:/auth
+    ports:
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health/live').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+secrets:
+  email_password:
+    file: ./secrets/email_password.txt
+
+volumes:
+  bridge_data:
+  bridge_auth:

@@ -150,9 +150,9 @@ WhatsApp Web (Baileys) <---> Message Normalizer <---> Router Policy <---> SQLite
 
 QR codes and authentication secrets are **never** written to application JSON logs.
 
-1. **Start in Pairing Mode:**
+1. **Start in Pairing Mode (Development / Local Build):**
    ```bash
-   WHATSAPP_PAIRING_MODE=true docker compose up --build
+   WHATSAPP_PAIRING_MODE=true docker compose -f docker-compose.dev.yml up --build
    ```
 2. **Scan the ASCII QR Code:**
    * Scan the QR code rendered directly in your terminal using **WhatsApp → Settings / Menu → Linked Devices → Link a Device**.
@@ -167,12 +167,13 @@ QR codes and authentication secrets are **never** written to application JSON lo
        Snippet:    "Hello"
      ```
    * Set `whatsapp.targetChatId` in `config.json` to this Chat ID (both `@lid` and `@s.whatsapp.net` formats are supported).
-4. **Switch to Background Service:**
+4. **Switch to Production Background Service:**
    * Press `Ctrl + C` to stop interactive pairing.
    * Set `WHATSAPP_PAIRING_MODE=false` in `.env`.
-   * Start in daemon mode:
+   * Start the production service (uses the prebuilt GHCR image with automated Watchtower updates):
      ```bash
      docker compose up -d
+     # or: docker compose -f docker-compose.prod.yml up -d
      ```
    * Your WhatsApp session is stored in the `bridge_auth` Docker volume (`/auth`, mode `0700`) and persists across container restarts.
 
