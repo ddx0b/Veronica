@@ -8,6 +8,7 @@ import {
   fetchLatestBaileysVersion,
   jidNormalizedUser,
   Browsers,
+  downloadMediaMessage,
   type WASocket,
   type BaileysEventMap,
   type WAVersion,
@@ -289,7 +290,7 @@ export class BaileysWhatsAppAdapter implements WhatsAppAdapter {
       }
     });
 
-    sock.ev.on('messages.upsert', (upsert) => {
+    sock.ev.on('messages.upsert', async (upsert) => {
       if (upsert.type !== 'notify') {
         return;
       }
@@ -336,6 +337,53 @@ export class BaileysWhatsAppAdapter implements WhatsAppAdapter {
             : Number(msg.messageTimestamp ?? Math.floor(Date.now() / 1000));
         const timestampMs = tsSeconds > 1e11 ? tsSeconds : tsSeconds * 1000;
 
+        let mediaPath: string | null = null;
+        const audioMsg = msg.message?.audioMessage;
+        if (audioMsg) {
+          try {
+            const mediaDir = fs.existsSync('/data/media')
+              ? '/data/media'
+              : path.join(this.options.authDirectory, 'media');
+            fs.mkdirSync(mediaDir, { recursive: true });
+
+            const buffer = await downloadMediaMessage(
+              msg,
+              'buffer',
+              {},
+              {
+                logger: silentLogger,
+                reuploadRequest: (update) =>
+                  (sock as any).updateMediaMessage?.(update) ?? Promise.resolve(msg),
+              }
+            );
+
+            if (buffer && Buffer.isBuffer(buffer) && buffer.length > 0) {
+              const mimetype = (audioMsg as any).mimetype || '';
+              const ext =
+                mimetype.includes('ogg') || mimetype.includes('opus')
+                  ? '.ogg'
+                  : mimetype.includes('mp4') || mimetype.includes('m4a')
+                  ? '.m4a'
+                  : mimetype.includes('mp3')
+                  ? '.mp3'
+                  : '.ogg';
+
+              const targetFile = path.join(mediaDir, `audio-${messageId}${ext}`);
+              fs.writeFileSync(targetFile, buffer);
+              mediaPath = targetFile;
+              this.logger.info(
+                { messageId, sizeBytes: buffer.length, targetFile },
+                'Downloaded audio message attachment'
+              );
+            }
+          } catch (downloadErr) {
+            this.logger.warn(
+              { messageId, err: (downloadErr as Error).message },
+              'Failed to download WhatsApp audio attachment; proceeding with placeholder text'
+            );
+          }
+        }
+
         const rawEvent: RawWhatsAppInboundEvent = {
           eventId: messageId,
           messageId,
@@ -345,6 +393,7 @@ export class BaileysWhatsAppAdapter implements WhatsAppAdapter {
           fromMe,
           timestampMs,
           messageContent: (msg.message as RawWhatsAppInboundEvent['messageContent']) ?? null,
+          mediaPath,
         };
 
         for (const handler of this.inboundHandlers) {

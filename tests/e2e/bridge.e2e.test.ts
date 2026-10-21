@@ -328,6 +328,39 @@ describe('End-to-End Bridge Scenarios (WhatsApp <-> Email)', () => {
       );
 
       // -----------------------------------------------------------------------
+      // Scenario 3b: Send a WhatsApp voice recording and verify audio attachment is delivered
+      // -----------------------------------------------------------------------
+      const audioFilePath = path.join(tmpDir, 'test-voice.ogg');
+      const sampleAudioData = Buffer.from('FAKE-OGG-AUDIO-CONTENT-UNDER-2MB');
+      fs.writeFileSync(audioFilePath, sampleAudioData);
+
+      env.whatsappAdapter.emitInbound({
+        eventId: 'wa-audio-1',
+        messageId: 'wa-audio-1',
+        chatId: TARGET_CHAT_ID,
+        senderId: TARGET_CHAT_ID,
+        senderName: 'Alice',
+        fromMe: false,
+        timestampMs: Date.now(),
+        messageContent: {
+          audioMessage: { ptt: true },
+        },
+        mediaPath: audioFilePath,
+      });
+
+      await env.app.worker.runTick();
+      assert.equal(env.emailAdapter.sentEmails.length, 3);
+      const audioEmail = env.emailAdapter.sentEmails[2]!;
+      assert.equal(audioEmail.text, '[Audio attached]');
+      assert.equal(audioEmail.attachments?.length, 1);
+      assert.equal(audioEmail.attachments[0]?.filename, 'voice-message.ogg');
+      assert.equal(audioEmail.attachments[0]?.contentType, 'audio/ogg');
+      assert.equal(
+        Buffer.compare(audioEmail.attachments[0]?.content as Buffer, sampleAudioData),
+        0
+      );
+
+      // -----------------------------------------------------------------------
       // Scenario 4: Deliver the same inbound email twice and verify deduplication
       // -----------------------------------------------------------------------
       const jobCountBefore = env.app.deliveryJobs.listAll().length;

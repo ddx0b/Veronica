@@ -18,12 +18,15 @@ RUN npm prune --omit=dev
 FROM node:22-alpine AS runtime
 WORKDIR /app
 
+# Install ffmpeg for audio compression and transcoding
+RUN apk add --no-cache ffmpeg
+
 ENV NODE_ENV=production
 ENV CONFIG_PATH=/app/config.json
 
-# Create writable directories for SQLite data and WhatsApp auth state owned by non-root 'node' user
-RUN mkdir -p /data /auth && \
-    chmod 0700 /data /auth && \
+# Create writable directories for SQLite data, media, and WhatsApp auth state owned by non-root 'node' user
+RUN mkdir -p /data /data/media /auth && \
+    chmod 0700 /data /data/media /auth && \
     chown -R node:node /data /auth /app
 
 COPY --from=builder --chown=node:node /app/package.json ./package.json

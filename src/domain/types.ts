@@ -59,6 +59,7 @@ export interface NormalizedMessage {
   messageType: MessageType;
   createdAt: string;
   targetChatId?: string;
+  mediaPath?: string | null;
 }
 
 export interface RawEmailInboundEvent {

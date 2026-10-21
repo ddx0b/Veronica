@@ -5,8 +5,9 @@ import { formatOutboundMessage } from '../domain/formatter.js';
 import type { Channel, DeliveryJobWithMessage } from '../domain/types.js';
 import type { DeliveryJobRepository } from '../persistence/repositories/delivery-job.repo.js';
 import type { WhatsAppAdapter } from '../adapters/whatsapp/interface.js';
-import type { EmailAdapter } from '../adapters/email/interface.js';
+import type { EmailAdapter, EmailAttachment } from '../adapters/email/interface.js';
 import type { MetricsRegistry } from '../observability/metrics.js';
+import { prepareAudioAttachment } from '../domain/audio-processor.js';
 
 export interface DeliveryWorkerConfig {
   pollIntervalMs: number;
@@ -159,6 +160,11 @@ export class DeliveryWorker {
         maxEmailLength: this.config.maxEmailLength,
       });
 
+      let attachments: EmailAttachment[] | undefined;
+      if (job.destinationChannel === 'email' && job.message.mediaPath) {
+        attachments = await prepareAudioAttachment(job.message.mediaPath, this.logger);
+      }
+
       const sendResult =
         job.destinationChannel === 'email'
           ? await this.emailAdapter.sendEmail({
@@ -168,6 +174,7 @@ export class DeliveryWorker {
               subject: `WhatsApp: ${job.message.senderName || job.message.conversationId}`,
               text: formattedText,
               conversationId: job.message.conversationId,
+              attachments,
             })
           : await this.whatsappAdapter.sendTextMessage(job.destinationId, formattedText);
 

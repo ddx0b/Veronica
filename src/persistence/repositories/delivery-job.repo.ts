@@ -35,6 +35,7 @@ interface DeliveryJobWithMessageRow extends DeliveryJobRow {
   msg_text: string;
   msg_message_type: MessageType;
   msg_created_at: string;
+  msg_media_path: string | null;
 }
 
 interface DeliveryAttemptRow {
@@ -78,6 +79,7 @@ function mapJobWithMessageRow(row: DeliveryJobWithMessageRow): DeliveryJobWithMe
       text: row.msg_text,
       messageType: row.msg_message_type,
       createdAt: row.msg_created_at,
+      mediaPath: row.msg_media_path,
     },
   };
 }
@@ -210,7 +212,8 @@ export class DeliveryJobRepository {
           m.conversation_id AS msg_conversation_id,
           m.text AS msg_text,
           m.message_type AS msg_message_type,
-          m.created_at AS msg_created_at
+          m.created_at AS msg_created_at,
+          m.media_path AS msg_media_path
         FROM delivery_jobs j
         INNER JOIN messages m ON m.id = j.message_id
         WHERE j.status IN ('pending', 'failed')

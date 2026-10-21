@@ -549,6 +549,7 @@ export class NodemailerEmailAdapter implements EmailAdapter {
       inReplyTo,
       references,
       replyTo,
+      attachments: params.attachments,
       headers: {
         'Message-ID': messageId,
         'In-Reply-To': inReplyTo,

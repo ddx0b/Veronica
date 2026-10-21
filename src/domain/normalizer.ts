@@ -21,6 +21,7 @@ export interface RawWhatsAppInboundEvent {
     stickerMessage?: Record<string, unknown> | null;
     [key: string]: unknown;
   } | null;
+  mediaPath?: string | null;
 }
 
 
@@ -79,6 +80,7 @@ export function normalizeWhatsAppEvent(
     senderName: event.senderName ?? null,
     conversationId: event.chatId,
     createdAt,
+    ...(event.mediaPath ? { mediaPath: event.mediaPath } : {}),
   };
 
   if (typeof content.conversation === 'string' && content.conversation.trim().length > 0) {

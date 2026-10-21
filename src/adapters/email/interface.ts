@@ -1,5 +1,11 @@
 import type { SendMessageResult } from '../../domain/types.js';
 
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer | string;
+  contentType?: string;
+}
+
 export interface SendEmailParams {
   to: string;
   chatId: string;
@@ -7,6 +13,7 @@ export interface SendEmailParams {
   subject: string;
   text: string;
   conversationId: string;
+  attachments?: EmailAttachment[];
 }
 
 export interface RawEmailInboundEvent {

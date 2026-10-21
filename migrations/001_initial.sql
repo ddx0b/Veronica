@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS messages (
   conversation_id TEXT NOT NULL,
   text TEXT NOT NULL,
   message_type TEXT NOT NULL CHECK (message_type IN ('text', 'image', 'video', 'audio', 'document', 'sticker', 'other_media')),
+  media_path TEXT,
   created_at TEXT NOT NULL
 );
 

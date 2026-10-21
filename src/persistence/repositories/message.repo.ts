@@ -11,6 +11,7 @@ interface MessageRow {
   text: string;
   message_type: MessageType;
   created_at: string;
+  media_path: string | null;
 }
 
 function mapRow(row: MessageRow): NormalizedMessage {
@@ -24,6 +25,7 @@ function mapRow(row: MessageRow): NormalizedMessage {
     text: row.text,
     messageType: row.message_type,
     createdAt: row.created_at,
+    mediaPath: row.media_path,
   };
 }
 
@@ -38,8 +40,8 @@ export class MessageRepository {
     const stmt = this.db.raw.prepare(`
       INSERT INTO messages (
         id, source_channel, source_message_id, sender_id, sender_name,
-        conversation_id, text, message_type, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        conversation_id, text, message_type, created_at, media_path
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -51,7 +53,8 @@ export class MessageRepository {
       message.conversationId,
       message.text,
       message.messageType,
-      message.createdAt
+      message.createdAt,
+      message.mediaPath ?? null
     );
 
     return message;
@@ -60,7 +63,7 @@ export class MessageRepository {
   public findById(id: string): NormalizedMessage | undefined {
     const stmt = this.db.raw.prepare(`
       SELECT id, source_channel, source_message_id, sender_id, sender_name,
-             conversation_id, text, message_type, created_at
+             conversation_id, text, message_type, created_at, media_path
       FROM messages
       WHERE id = ?
     `);
