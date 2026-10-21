@@ -17,6 +17,8 @@ export interface RawEmailInboundEvent {
   body: string;
   targetChatId: string;
   receivedAt: string;
+  inReplyTo?: string;
+  references?: string;
 }
 
 export type InboundEmailHandler = (event: RawEmailInboundEvent) => Promise<void> | void;

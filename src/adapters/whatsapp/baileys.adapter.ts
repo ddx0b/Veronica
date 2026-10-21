@@ -11,6 +11,7 @@ import {
   type WASocket,
   type BaileysEventMap,
   type WAVersion,
+  type WACallEvent,
 } from '@whiskeysockets/baileys';
 import qrcode from 'qrcode-terminal';
 import { pino, type Logger } from 'pino';
@@ -85,6 +86,11 @@ export class BaileysWhatsAppAdapter implements WhatsAppAdapter {
   private inboundHandlers: InboundWhatsAppHandler[] = [];
   private receiptHandlers: WhatsAppReceiptUpdateHandler[] = [];
   private sentMessageIds = new Set<string>();
+  private readonly callState = new Map<
+    string,
+    { from: string; isVideo: boolean; timestamp: number; accepted: boolean }
+  >();
+  private readonly processedCallIds = new Set<string>();
   private stopping = false;
   private reconnectTimer: NodeJS.Timeout | null = null;
 
@@ -367,6 +373,93 @@ export class BaileysWhatsAppAdapter implements WhatsAppAdapter {
                 );
               }
             );
+          }
+        }
+      }
+    });
+
+    sock.ev.on('call', (calls: WACallEvent[]) => {
+      for (const call of calls) {
+        if (!call.id || !call.from) continue;
+
+        const remoteJid = jidNormalizedUser(call.from);
+        if (call.isGroup || isGroupWhatsAppChat(remoteJid)) {
+          continue;
+        }
+
+        const isWildcard = this.options.targetChatId === '*';
+        const targetNormalized = isWildcard ? '*' : jidNormalizedUser(this.options.targetChatId);
+        if (!isWildcard && remoteJid !== targetNormalized) {
+          continue;
+        }
+
+        if (call.status === 'offer') {
+          this.callState.set(call.id, {
+            from: remoteJid,
+            isVideo: Boolean(call.isVideo),
+            timestamp: call.date ? new Date(call.date).getTime() : Date.now(),
+            accepted: false,
+          });
+        } else if (call.status === 'accept') {
+          const state = this.callState.get(call.id);
+          if (state) {
+            state.accepted = true;
+          }
+        } else if (
+          call.status === 'timeout' ||
+          call.status === 'terminate' ||
+          call.status === 'reject'
+        ) {
+          if (this.processedCallIds.has(call.id)) {
+            continue;
+          }
+
+          const existingState = this.callState.get(call.id);
+          if (existingState?.accepted) {
+            continue;
+          }
+
+          this.processedCallIds.add(call.id);
+          if (this.processedCallIds.size > 1000) {
+            const first = this.processedCallIds.values().next().value;
+            if (first) this.processedCallIds.delete(first);
+          }
+          if (this.callState.size > 500) {
+            const firstKey = this.callState.keys().next().value;
+            if (firstKey) this.callState.delete(firstKey);
+          }
+
+          const isVideo = call.isVideo ?? existingState?.isVideo ?? false;
+          const timestampMs = call.date
+            ? new Date(call.date).getTime()
+            : existingState?.timestamp ?? Date.now();
+          const callText = isVideo ? '[Missed Video Call]' : '[Missed Voice Call]';
+
+          this.logger.info(
+            { callId: call.id, from: remoteJid, isVideo, status: call.status },
+            'Missed WhatsApp call recorded; dispatching notification'
+          );
+
+          const rawEvent: RawWhatsAppInboundEvent = {
+            eventId: `call-${call.id}`,
+            messageId: `call-${call.id}`,
+            chatId: remoteJid,
+            senderId: remoteJid,
+            senderName: null,
+            fromMe: false,
+            timestampMs,
+            messageContent: {
+              conversation: callText,
+            },
+          };
+
+          for (const handler of this.inboundHandlers) {
+            Promise.resolve(handler(rawEvent)).catch((err: unknown) => {
+              this.logger.error(
+                { err: (err as Error).message, callId: call.id },
+                'Error processing missed call inbound event'
+              );
+            });
           }
         }
       }

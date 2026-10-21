@@ -271,7 +271,50 @@ export class BridgeApplication {
   public handleInboundEmailEvent(rawEvent: RawEmailInboundEvent): void {
     this.metrics.incrementInboundEvents();
 
-    const normalized = normalizeEmailEvent(rawEvent);
+    let resolvedTargetChatId = rawEvent.targetChatId?.trim() || '';
+
+    // If targetChatId could not be extracted from plus address or <chat-*> headers,
+    // look up the In-Reply-To or References message ID in delivery jobs to recover the parent WhatsApp chat.
+    if (!resolvedTargetChatId && rawEvent.inReplyTo) {
+      const parentJob = this.deliveryJobs.findByProviderMessageId(rawEvent.inReplyTo.trim());
+      if (parentJob) {
+        const parentMessage = this.messages.findById(parentJob.messageId);
+        if (parentMessage?.conversationId) {
+          resolvedTargetChatId = parentMessage.conversationId;
+          this.logger.info(
+            { inReplyTo: rawEvent.inReplyTo, resolvedTargetChatId },
+            'Resolved target WhatsApp chat from In-Reply-To providerMessageId lookup'
+          );
+        }
+      }
+    }
+
+    if (!resolvedTargetChatId && rawEvent.references) {
+      const refMatches = rawEvent.references.match(/<wa-[^>]+>/g);
+      if (refMatches) {
+        for (const ref of refMatches) {
+          const parentJob = this.deliveryJobs.findByProviderMessageId(ref);
+          if (parentJob) {
+            const parentMessage = this.messages.findById(parentJob.messageId);
+            if (parentMessage?.conversationId) {
+              resolvedTargetChatId = parentMessage.conversationId;
+              this.logger.info(
+                { reference: ref, resolvedTargetChatId },
+                'Resolved target WhatsApp chat from References wa-ID lookup'
+              );
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    const eventToNormalize: RawEmailInboundEvent = {
+      ...rawEvent,
+      targetChatId: resolvedTargetChatId,
+    };
+
+    const normalized = normalizeEmailEvent(eventToNormalize);
     if (normalized.kind === 'ignored') {
       const insertRes = this.inboundEvents.insertOrDetectDuplicate({
         sourceChannel: 'email',
@@ -294,10 +337,10 @@ export class BridgeApplication {
       sourceEventId: rawEvent.messageId,
       payloadMetadata: {
         subject: rawEvent.subject,
-        targetChatId: rawEvent.targetChatId,
+        targetChatId: resolvedTargetChatId,
       },
       normalizedMessage: normalized.message,
-      targetChatId: rawEvent.targetChatId,
+      targetChatId: resolvedTargetChatId,
     });
 
     if (result.status === 'duplicate') {

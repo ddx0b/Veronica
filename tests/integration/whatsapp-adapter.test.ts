@@ -143,4 +143,138 @@ describe('WhatsApp Adapter (Baileys Integration with Mock Socket)', () => {
       fs.rmSync(tmpAuthDir, { recursive: true, force: true });
     }
   });
+
+  it('dispatches notifications for missed audio and video calls, but ignores answered calls', async () => {
+    const tmpAuthDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-auth-call-test-'));
+    const logger = createLogger({
+      level: 'silent',
+    });
+
+    const { socket, emitter } = createMockSocket();
+    const receivedEvents: RawWhatsAppInboundEvent[] = [];
+
+    const adapter = new BaileysWhatsAppAdapter({
+      authDirectory: tmpAuthDir,
+      targetChatId: '*',
+      logger,
+      socketFactory: async () => socket,
+    });
+
+    adapter.onInboundMessage((evt) => {
+      receivedEvents.push(evt);
+    });
+
+    try {
+      await adapter.start();
+
+      // 1. Missed voice call (offer -> timeout)
+      emitter.emit('call', [
+        {
+          id: 'call-1',
+          from: '15551234567@s.whatsapp.net',
+          chatId: '15551234567@s.whatsapp.net',
+          isVideo: false,
+          status: 'offer',
+          date: new Date(),
+          offline: false,
+        },
+      ]);
+      assert.equal(receivedEvents.length, 0);
+
+      emitter.emit('call', [
+        {
+          id: 'call-1',
+          from: '15551234567@s.whatsapp.net',
+          chatId: '15551234567@s.whatsapp.net',
+          isVideo: false,
+          status: 'timeout',
+          date: new Date(),
+          offline: false,
+        },
+      ]);
+      assert.equal(receivedEvents.length, 1);
+      assert.equal(receivedEvents[0]?.chatId, '15551234567@s.whatsapp.net');
+      assert.equal(receivedEvents[0]?.messageContent?.conversation, '[Missed Voice Call]');
+
+      // 2. Missed video call (offer -> terminate)
+      emitter.emit('call', [
+        {
+          id: 'call-2',
+          from: '19998887777@s.whatsapp.net',
+          chatId: '19998887777@s.whatsapp.net',
+          isVideo: true,
+          status: 'offer',
+          date: new Date(),
+          offline: false,
+        },
+      ]);
+      emitter.emit('call', [
+        {
+          id: 'call-2',
+          from: '19998887777@s.whatsapp.net',
+          chatId: '19998887777@s.whatsapp.net',
+          isVideo: true,
+          status: 'terminate',
+          date: new Date(),
+          offline: false,
+        },
+      ]);
+      assert.equal(receivedEvents.length, 2);
+      assert.equal(receivedEvents[1]?.chatId, '19998887777@s.whatsapp.net');
+      assert.equal(receivedEvents[1]?.messageContent?.conversation, '[Missed Video Call]');
+
+      // 3. Duplicate event for call-2 (e.g. timeout following terminate) is ignored
+      emitter.emit('call', [
+        {
+          id: 'call-2',
+          from: '19998887777@s.whatsapp.net',
+          chatId: '19998887777@s.whatsapp.net',
+          isVideo: true,
+          status: 'timeout',
+          date: new Date(),
+          offline: false,
+        },
+      ]);
+      assert.equal(receivedEvents.length, 2);
+
+      // 4. Answered call (offer -> accept -> terminate) -> NO missed call notification
+      emitter.emit('call', [
+        {
+          id: 'call-3',
+          from: '15551234567@s.whatsapp.net',
+          chatId: '15551234567@s.whatsapp.net',
+          isVideo: false,
+          status: 'offer',
+          date: new Date(),
+          offline: false,
+        },
+      ]);
+      emitter.emit('call', [
+        {
+          id: 'call-3',
+          from: '15551234567@s.whatsapp.net',
+          chatId: '15551234567@s.whatsapp.net',
+          isVideo: false,
+          status: 'accept',
+          date: new Date(),
+          offline: false,
+        },
+      ]);
+      emitter.emit('call', [
+        {
+          id: 'call-3',
+          from: '15551234567@s.whatsapp.net',
+          chatId: '15551234567@s.whatsapp.net',
+          isVideo: false,
+          status: 'terminate',
+          date: new Date(),
+          offline: false,
+        },
+      ]);
+      assert.equal(receivedEvents.length, 2);
+    } finally {
+      await adapter.stop();
+      fs.rmSync(tmpAuthDir, { recursive: true, force: true });
+    }
+  });
 });

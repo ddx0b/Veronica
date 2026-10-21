@@ -124,6 +124,35 @@ export function extractDomain(address: string): string {
   return 'localhost';
 }
 
+export function extractEmailUser(address: string): string {
+  const match = address.match(/<([^>]+)>/);
+  const clean = (match && match[1] ? match[1] : address) || '';
+  const atIdx = clean.lastIndexOf('@');
+  if (atIdx > 0) {
+    return clean.slice(0, atIdx).replace(/[<\s]/g, '').trim();
+  }
+  return clean.replace(/[<>\s]/g, '').trim() || 'bridge';
+}
+
+export function encodeChatIdForEmail(chatId: string): string {
+  if (!chatId) return '';
+  // WhatsApp JIDs contain '@' (e.g. 15551234567@s.whatsapp.net, 64626456797369@lid).
+  // Email local-parts cannot contain unquoted '@', and mail providers (like Gmail) reject quoted '@'.
+  // We use '__' as a safe, unquoted replacement for '@'.
+  return chatId.replace(/@/g, '__');
+}
+
+export function decodeChatIdFromEmail(encoded: string): string {
+  if (!encoded) return '';
+  let decoded = decodeURIComponent(encoded);
+  if (decoded.includes('__at__')) {
+    decoded = decoded.replace(/__at__/g, '@');
+  } else if (decoded.includes('__')) {
+    decoded = decoded.replace(/__/g, '@');
+  }
+  return decoded;
+}
+
 export function decodeQuotedPrintable(input: string, encoding: BufferEncoding = 'utf-8'): string {
   const sanitized = input.replace(/=\r?\n/g, '');
   const bytes: number[] = [];
@@ -226,7 +255,7 @@ export function extractTargetChatId(
       if (recipient.address) {
         const plusMatch = recipient.address.match(/\+([^@\s>]+)@/);
         if (plusMatch && plusMatch[1]) {
-          return decodeURIComponent(plusMatch[1]);
+          return decodeChatIdFromEmail(plusMatch[1]);
         }
       }
     }
@@ -244,22 +273,29 @@ export function extractTargetChatId(
       if (candidate) {
         const plusMatch = candidate.match(/\+([^@\s>]+)@/);
         if (plusMatch && plusMatch[1]) {
-          return decodeURIComponent(plusMatch[1]);
+          return decodeChatIdFromEmail(plusMatch[1]);
         }
       }
     }
 
     if (headers['x-target-chat-id']) {
-      return headers['x-target-chat-id'].trim();
+      return decodeChatIdFromEmail(headers['x-target-chat-id'].trim());
     }
     if (headers['x-chat-id']) {
-      return headers['x-chat-id'].trim();
+      return decodeChatIdFromEmail(headers['x-chat-id'].trim());
     }
 
     if (headers['in-reply-to']) {
       const replyMatch = headers['in-reply-to'].match(/<chat-([^@>]+)@/);
       if (replyMatch && replyMatch[1]) {
-        return replyMatch[1].trim();
+        return decodeChatIdFromEmail(replyMatch[1].trim());
+      }
+    }
+
+    if (headers['references']) {
+      const refMatch = headers['references'].match(/<chat-([^@>]+)@/);
+      if (refMatch && refMatch[1]) {
+        return decodeChatIdFromEmail(refMatch[1].trim());
       }
     }
   }
@@ -268,7 +304,7 @@ export function extractTargetChatId(
   if (envelope?.inReplyTo) {
     const replyMatch = envelope.inReplyTo.match(/<chat-([^@>]+)@/);
     if (replyMatch && replyMatch[1]) {
-      return replyMatch[1].trim();
+      return decodeChatIdFromEmail(replyMatch[1].trim());
     }
   }
 
@@ -485,19 +521,24 @@ export class NodemailerEmailAdapter implements EmailAdapter {
 
   public async sendEmail(params: SendEmailParams): Promise<SendMessageResult> {
     const domain = this.options.smtp.domain || extractDomain(this.options.smtp.fromAddress);
+    const emailUser = extractEmailUser(this.options.smtp.fromAddress);
     const senderDisplay = params.senderName?.trim() || 'WhatsApp';
     const from = `"${senderDisplay}" <${this.options.smtp.fromAddress}>`;
 
+    const encodedChatId = encodeChatIdForEmail(params.chatId);
+    const encodedConvId = encodeChatIdForEmail(params.conversationId);
+
     const random = crypto.randomBytes(4).toString('hex');
     const messageId = `<wa-${Date.now()}-${random}@${domain}>`;
-    const inReplyTo = `<chat-${params.conversationId}@${domain}>`;
-    const references = `<chat-${params.conversationId}@${domain}>`;
+    const inReplyTo = `<chat-${encodedConvId}@${domain}>`;
+    const references = `<chat-${encodedConvId}@${domain}>`;
 
     const replyTo = this.options.smtp.replyToPattern
       ? this.options.smtp.replyToPattern
-          .replace('{chatId}', encodeURIComponent(params.chatId))
+          .replace('{chatId}', encodedChatId)
           .replace('{domain}', domain)
-      : `<bridge+${params.chatId}@${domain}>`;
+          .replace('{user}', emailUser)
+      : `<${emailUser}+${encodedChatId}@${domain}>`;
 
     const mailOptions: SendMailOptions = {
       from,
@@ -746,6 +787,9 @@ export class NodemailerEmailAdapter implements EmailAdapter {
         ? new Date(msg.internalDate).toISOString()
         : new Date().toISOString();
 
+    const inReplyTo = msg.envelope?.inReplyTo || rawHeaders['in-reply-to'] || undefined;
+    const references = rawHeaders['references'] || undefined;
+
     const event: RawEmailInboundEvent = {
       messageId,
       from: fromAddress,
@@ -754,6 +798,8 @@ export class NodemailerEmailAdapter implements EmailAdapter {
       body: parsedBodyText,
       targetChatId,
       receivedAt,
+      inReplyTo,
+      references,
     };
 
     for (const handler of this.inboundHandlers) {

@@ -71,6 +71,8 @@ export interface RawEmailInboundEvent {
   subject?: string;
   senderName?: string | null;
   receivedAt?: string;
+  inReplyTo?: string;
+  references?: string;
 }
 
 export interface DeliveryJob {

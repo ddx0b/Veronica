@@ -5,6 +5,9 @@ import {
   NodemailerEmailAdapter,
   mapEmailError,
   extractDomain,
+  extractEmailUser,
+  encodeChatIdForEmail,
+  decodeChatIdFromEmail,
   extractTargetChatId,
   parseEmailSource,
   decodeQuotedPrintable,
@@ -155,7 +158,7 @@ describe('Email Adapter - SMTP Outbound Sending', () => {
     assert.equal(sent.from, '"Alice" <bridge@example.com>');
     assert.equal(sent.subject, 'WhatsApp: Alice');
     assert.equal(sent.text, 'Hello from WhatsApp!');
-    assert.equal(sent.replyTo, '<bridge+15551234567@s.whatsapp.net@example.com>');
+    assert.equal(sent.replyTo, '<bridge+15551234567__s.whatsapp.net@example.com>');
 
     // Threading headers
     assert.match(sent.messageId, /^<wa-\d+-[a-f0-9]+@example\.com>$/);
@@ -576,6 +579,14 @@ describe('Email Helper Functions', () => {
       'alice@domain.net'
     );
     assert.equal(
+      extractTargetChatId({ to: [{ address: 'veronicabridgerp+64626456797369__lid@gmail.com' }] }),
+      '64626456797369@lid'
+    );
+    assert.equal(
+      extractTargetChatId({ to: [{ address: 'veronicabridgerp+15551234567__s.whatsapp.net@gmail.com' }] }),
+      '15551234567@s.whatsapp.net'
+    );
+    assert.equal(
       extractTargetChatId(undefined, { 'delivered-to': 'bridge+987654321@example.com' }),
       '987654321'
     );
@@ -583,5 +594,32 @@ describe('Email Helper Functions', () => {
       extractTargetChatId({ inReplyTo: '<chat-conversation_99@example.com>' }),
       'conversation_99'
     );
+    assert.equal(
+      extractTargetChatId(undefined, { 'references': '<chat-64626456797369__lid@gmail.com> <wa-12345@gmail.com>' }),
+      '64626456797369@lid'
+    );
+  });
+
+  it('extractEmailUser extracts username from plain or formatted email addresses', () => {
+    assert.equal(extractEmailUser('veronicabridgerp@gmail.com'), 'veronicabridgerp');
+    assert.equal(extractEmailUser('"Veronica Bridge" <veronicabridgerp@gmail.com>'), 'veronicabridgerp');
+    assert.equal(extractEmailUser('hello.world+filter@domain.co.uk'), 'hello.world+filter');
+    assert.equal(extractEmailUser('bridge'), 'bridge');
+  });
+
+  it('encodeChatIdForEmail and decodeChatIdFromEmail handle WhatsApp JIDs safely without quotes', () => {
+    const lid = '64626456797369@lid';
+    const encodedLid = encodeChatIdForEmail(lid);
+    assert.equal(encodedLid, '64626456797369__lid');
+    assert.equal(decodeChatIdFromEmail(encodedLid), lid);
+
+    const phoneJid = '34612345678@s.whatsapp.net';
+    const encodedPhone = encodeChatIdForEmail(phoneJid);
+    assert.equal(encodedPhone, '34612345678__s.whatsapp.net');
+    assert.equal(decodeChatIdFromEmail(encodedPhone), phoneJid);
+
+    const plain = '34612345678';
+    assert.equal(encodeChatIdForEmail(plain), '34612345678');
+    assert.equal(decodeChatIdFromEmail('34612345678'), '34612345678');
   });
 });

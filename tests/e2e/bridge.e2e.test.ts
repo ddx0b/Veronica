@@ -647,6 +647,26 @@ describe('End-to-End Bridge Scenarios (WhatsApp <-> Email)', () => {
         `[Email] ${USER_EMAIL}: Sure, 12:30!`
       );
 
+      // 4b. User replies directly without plus tag in To, resolved via In-Reply-To thread lookup
+      emailAdapter.emitInboundEmail({
+        messageId: '<reply-thread-lookup@mail.client.com>',
+        from: USER_EMAIL,
+        to: 'bridge@bridge.example.com',
+        subject: 'Re: WhatsApp: Alice',
+        body: 'See you there!',
+        targetChatId: '',
+        inReplyTo: emailAdapter.sentEmails[0]?.messageId,
+        receivedAt: new Date().toISOString(),
+      });
+      await app.worker.runTick();
+
+      assert.equal(whatsappAdapter.sentMessages.length, 3);
+      assert.equal(whatsappAdapter.sentMessages[2]?.chatId, ALICE_CHAT);
+      assert.equal(
+        whatsappAdapter.sentMessages[2]?.text,
+        `[Email] ${USER_EMAIL}: See you there!`
+      );
+
       // 5. Group chat message is safely ignored
       const GROUP_CHAT = 'dev-team@g.us';
       whatsappAdapter.emitInbound({
