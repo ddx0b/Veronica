@@ -228,7 +228,7 @@ export function stripEmailQuotes(text: string): string {
   }
 
   // Mobile signatures
-  const mobileSigRegex = /(?:^|\n)\s*(?:Sent from my|Get Outlook for|Obtener Outlook para|Enviado desde mi|Enviado do meu|Enviado pelo meu|Enviado de meu|Enviado via)\s+[^\n]+/i;
+  const mobileSigRegex = /(?:^|\n)\s*(?:Sent from my|Get Outlook for|Obtener Outlook para|Enviado desde mi|Enviado do meu|Enviado pelo meu|Enviado de meu|Enviado via|Este mensaje (?:ha sido|se ha|fue|se)?\s*enviado desde|This message (?:was|has been)?\s*sent from)\s+[^\n]+/i;
   const mobileSigMatch = mobileSigRegex.exec(cleaned);
   if (mobileSigMatch) {
     cleaned = cleaned.slice(0, mobileSigMatch.index);

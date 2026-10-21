@@ -4,8 +4,8 @@ import { formatOutboundMessage } from '../../src/domain/formatter.js';
 import { PermanentDeliveryError } from '../../src/domain/errors.js';
 
 describe('Outbound Message Formatter', () => {
-  it('formats Email -> WhatsApp with [Email] prefix and sender', () => {
-    const formattedWithSenderName = formatOutboundMessage(
+  it('formats Email -> WhatsApp as clean message by default (no prefix)', () => {
+    const formattedDefault = formatOutboundMessage(
       {
         id: '1',
         sourceChannel: 'email',
@@ -18,6 +18,26 @@ describe('Outbound Message Formatter', () => {
         createdAt: new Date().toISOString(),
       },
       'whatsapp'
+    );
+
+    assert.equal(formattedDefault, 'Are we meeting at 19:00?');
+  });
+
+  it('formats Email -> WhatsApp with [Email] prefix when includeEmailPrefix is true', () => {
+    const formattedWithSenderName = formatOutboundMessage(
+      {
+        id: '1',
+        sourceChannel: 'email',
+        sourceMessageId: 'em-1',
+        senderId: 'user@example.com',
+        senderName: 'Alice',
+        conversationId: '15551234567@s.whatsapp.net',
+        text: 'Are we meeting at 19:00?',
+        messageType: 'text',
+        createdAt: new Date().toISOString(),
+      },
+      'whatsapp',
+      { includeEmailPrefix: true }
     );
 
     assert.equal(formattedWithSenderName, '[Email] Alice: Are we meeting at 19:00?');
@@ -34,7 +54,8 @@ describe('Outbound Message Formatter', () => {
         messageType: 'text',
         createdAt: new Date().toISOString(),
       },
-      'whatsapp'
+      'whatsapp',
+      { includeEmailPrefix: true }
     );
 
     assert.equal(formattedWithSenderId, '[Email] user@example.com: Yes, see you there!');

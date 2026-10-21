@@ -16,6 +16,7 @@ export interface DeliveryWorkerConfig {
   maxBackoffMs: number;
   maxEmailLength?: number;
   whatsappEnabled: boolean;
+  includeEmailPrefix?: boolean;
 }
 
 export interface DeliveryWorkerDeps {
@@ -158,6 +159,7 @@ export class DeliveryWorker {
     try {
       const formattedText = formatOutboundMessage(job.message, job.destinationChannel, {
         maxEmailLength: this.config.maxEmailLength,
+        includeEmailPrefix: this.config.includeEmailPrefix,
       });
 
       let attachments: EmailAttachment[] | undefined;

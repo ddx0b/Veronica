@@ -4,6 +4,7 @@ import type { Channel, NormalizedMessage } from './types.js';
 export interface FormatOutboundOptions {
   maxEmailLength?: number;
   maxWhatsAppLength?: number;
+  includeEmailPrefix?: boolean;
 }
 
 const DEFAULT_MAX_WHATSAPP_LENGTH = 4096;
@@ -13,14 +14,17 @@ export function formatOutboundMessage(
   destinationChannel: Channel,
   options: FormatOutboundOptions = {}
 ): string {
-  const senderDisplay =
-    message.senderName && message.senderName.trim().length > 0
-      ? message.senderName.trim()
-      : message.senderId;
-
   let formatted: string;
   if (destinationChannel === 'whatsapp') {
-    formatted = `[Email] ${senderDisplay}: ${message.text}`;
+    if (options.includeEmailPrefix) {
+      const senderDisplay =
+        message.senderName && message.senderName.trim().length > 0
+          ? message.senderName.trim()
+          : message.senderId;
+      formatted = `[Email] ${senderDisplay}: ${message.text}`;
+    } else {
+      formatted = message.text;
+    }
   } else {
     formatted = message.text;
   }

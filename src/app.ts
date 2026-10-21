@@ -127,6 +127,7 @@ export class BridgeApplication {
         baseBackoffMs: config.worker.baseBackoffMs,
         maxBackoffMs: config.worker.maxBackoffMs,
         whatsappEnabled: config.whatsapp.enabled,
+        includeEmailPrefix: config.routing.includeEmailPrefix,
       },
       deliveryJobs: this.deliveryJobs,
       whatsappAdapter: this.whatsappAdapter,

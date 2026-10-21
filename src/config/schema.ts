@@ -43,6 +43,7 @@ export const ConfigFileSchema = z.object({
     allowedEmailSenders: z
       .array(z.string().email())
       .min(1, 'allowedEmailSenders must contain at least one email address'),
+    includeEmailPrefix: z.boolean().default(false),
   }),
   database: z.object({
     path: z.string().min(1, 'database.path is required'),

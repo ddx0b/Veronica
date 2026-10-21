@@ -301,7 +301,7 @@ describe('End-to-End Bridge Scenarios (WhatsApp <-> Email)', () => {
       assert.equal(env.whatsappAdapter.sentMessages[0]?.chatId, TARGET_CHAT_ID);
       assert.equal(
         env.whatsappAdapter.sentMessages[0]?.text,
-        `[Email] ${USER_EMAIL}: Yes, see you at 19:00!`
+        'Yes, see you at 19:00!'
       );
 
       // -----------------------------------------------------------------------
@@ -429,7 +429,7 @@ describe('End-to-End Bridge Scenarios (WhatsApp <-> Email)', () => {
       assert.equal(env.whatsappAdapter.sentMessages.length, 1);
       assert.equal(
         env.whatsappAdapter.sentMessages[0]?.text,
-        `[Email] ${USER_EMAIL}: Sent while WhatsApp is offline`
+        'Sent while WhatsApp is offline'
       );
 
       // -----------------------------------------------------------------------
@@ -658,7 +658,7 @@ describe('End-to-End Bridge Scenarios (WhatsApp <-> Email)', () => {
       assert.equal(whatsappAdapter.sentMessages[0]?.chatId, BOB_CHAT);
       assert.equal(
         whatsappAdapter.sentMessages[0]?.text,
-        `[Email] ${USER_EMAIL}: Reviewing it now!`
+        'Reviewing it now!'
       );
 
       // 4. User replies to Alice via Email
@@ -677,7 +677,7 @@ describe('End-to-End Bridge Scenarios (WhatsApp <-> Email)', () => {
       assert.equal(whatsappAdapter.sentMessages[1]?.chatId, ALICE_CHAT);
       assert.equal(
         whatsappAdapter.sentMessages[1]?.text,
-        `[Email] ${USER_EMAIL}: Sure, 12:30!`
+        'Sure, 12:30!'
       );
 
       // 4b. User replies directly without plus tag in To, resolved via In-Reply-To thread lookup
@@ -697,7 +697,7 @@ describe('End-to-End Bridge Scenarios (WhatsApp <-> Email)', () => {
       assert.equal(whatsappAdapter.sentMessages[2]?.chatId, ALICE_CHAT);
       assert.equal(
         whatsappAdapter.sentMessages[2]?.text,
-        `[Email] ${USER_EMAIL}: See you there!`
+        'See you there!'
       );
 
       // 5. Group chat message is safely ignored
